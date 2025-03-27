@@ -1610,10 +1610,10 @@ function setupPostProcessing() {
   composer.addPass(rgbShiftPass)
 }
 
-// Load GLTF Model
-const loader = new GLTFLoader().setPath("public/millennium_falcon/")
+// Load GLTF Model - FIXED PATH HERE
+const loader = new GLTFLoader()
 loader.load(
-  "scene.gltf",
+  "scene.gltf", // Direct path to the model file - this is the key fix
   (gltf) => {
     console.log("Model loaded successfully")
     spaceship = gltf.scene
@@ -1795,19 +1795,6 @@ function animate() {
       midAvg = getAverageFrequency(midData)
       trebleAvg = getAverageFrequency(trebleData)
     }
-
-    // Update skybox
-    // if (skybox && skybox.material) {
-    //   for (let i = 0; i < skybox.material.length; i++) {
-    //     const material = skybox.material[i]
-    //     // Pulse opacity with bass
-    //     material.opacity = 0.3 + bassAvg * 0.3
-
-    //     // Change color with time and audio
-    //     const hue = (elapsedTime * 0.02 + bassAvg * 0.2) % 1
-    //     material.color.setHSL(hue, 0.7, 0.1 + bassAvg * 0.2)
-    //   }
-    // }
 
     // Update visualizer bars
     if (visualizerBars && visualizerBars.length > 0 && audioData) {
@@ -2071,46 +2058,6 @@ function animate() {
         thrusterParticles.geometry.attributes.color.needsUpdate = true
       }
     }
-
-    // if (starField && starField.material.uniforms) {
-    //   starField.material.uniforms.time.value = elapsedTime
-    //   starField.material.uniforms.pixelRatio.value = renderer.getPixelRatio()
-
-    //   // Update audio intensity in shader
-    //   if (starField.material.uniforms.audioIntensity) {
-    //     starField.material.uniforms.audioIntensity.value = trebleAvg
-    //   }
-
-    //   if (starField.geometry.attributes.position && starField.geometry.attributes.velocity) {
-    //     const positions = starField.geometry.attributes.position.array
-    //     const velocities = starField.geometry.attributes.velocity.array
-    //     const count = positions.length / 3
-
-    //     // Speed up star movement based on treble
-    //     const speedMultiplier = 1 + trebleAvg * 2
-
-    //     const updateCount = Math.min(count, 2000)
-    //     const startIdx = Math.floor(Math.random() * (count - updateCount))
-
-    //     for (let i = startIdx; i < startIdx + updateCount; i++) {
-    //       positions[i * 3] += velocities[i * 3] * speedMultiplier
-    //       positions[i * 3 + 1] += velocities[i * 3 + 1] * speedMultiplier
-    //       positions[i * 3 + 2] += velocities[i * 3 + 2] * speedMultiplier
-
-    //       if (positions[i * 3 + 2] < -150) {
-    //         const radius = 150
-    //         const theta = Math.random() * Math.PI * 2
-    //         const phi = Math.random() * Math.PI
-
-    //         positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
-    //         positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
-    //         positions[i * 3 + 2] = radius * Math.cos(phi)
-    //       }
-    //     }
-
-    //     starField.geometry.attributes.position.needsUpdate = true
-    //   }
-    // }
 
     if (floatingCrystals && floatingCrystals.length > 0) {
       floatingCrystals.forEach((crystal, index) => {
