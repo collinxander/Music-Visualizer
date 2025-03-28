@@ -48,3 +48,6 @@
 *.bc filter=lfs diff=lfs merge=lfs -text
 *.gltf filter=lfs diff=lfs merge=lfs -text
 scene.gltf filter=lfs diff=lfs merge=lfs -text
+public/fonts/*.ttf filter=lfs diff=lfs merge=lfs -text
+public/fonts/SF[[:space:]]Distant[[:space:]]Galaxy.ttf filter=lfs diff=lfs merge=lfs -text
+public/fonts/SF[[:space:]]Distant[[:space:]]Galaxy.ttf !text !filter !merge !diff
