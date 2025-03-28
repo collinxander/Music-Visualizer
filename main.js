@@ -1189,7 +1189,7 @@ function setupPostProcessing() {
 }
 
 // Load GLTF Model
-const loader = new GLTFLoader().setPath("public/millennium_falcon/")
+const loader = new GLTFLoader().setPath("/public/millennium_falcon/")
 loader.load(
   "scene.gltf",
   (gltf) => {
