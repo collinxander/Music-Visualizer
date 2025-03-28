@@ -19,13 +19,8 @@ let composer,
   visualizerBars = [],
   lightningEffects = [],
   skybox,
-  wormhole,
-  audioReactiveGeometry,
-  particleSystem,
-  laserBeams = [],
-  nebulaClouds = [],
-  asteroidField,
-  galaxySpiral,
+  asteroidBelts = [],
+  wormholes = [],
   soundWavePlane
 let mouseX = 0,
   mouseY = 0
@@ -44,11 +39,10 @@ let beatDetected = false
 const renderer = new THREE.WebGLRenderer({
   antialias: true,
   powerPreference: "high-performance",
-  alpha: true,
 })
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.setSize(window.innerWidth, window.innerHeight)
-renderer.setClearColor(0x000000, 0)
+renderer.setClearColor(0x000000)
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5))
 renderer.shadowMap.enabled = true
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
@@ -222,13 +216,8 @@ function updateAudioData() {
     // Create lightning effect on beat
     createLightningEffect()
 
-    // Create laser beam on beat
-    createLaserBeam()
-
-    // Trigger wormhole pulse on beat
-    if (wormhole) {
-      pulsateWormhole()
-    }
+    // Pulse wormholes on beat
+    pulseWormholes()
   } else {
     beatDetected = false
   }
@@ -616,498 +605,220 @@ function createGlowingRing() {
   return ringGroup
 }
 
-// NEW: Create Wormhole Effect
-function createWormhole() {
-  const wormholeGroup = new THREE.Group()
+// Create Asteroid Belt
+function createAsteroidBelts() {
+  const belts = []
+  const beltCount = 3
 
-  // Create the main tunnel
-  const tunnelGeometry = new THREE.TubeGeometry(
-    new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 0, -20),
-      new THREE.Vector3(0, 0, -50),
-      new THREE.Vector3(0, 0, -100),
-    ]),
-    64, // tubular segments
-    5, // radius
-    16, // radial segments
-    false, // closed
-  )
+  for (let b = 0; b < beltCount; b++) {
+    const beltGroup = new THREE.Group()
+    const asteroidCount = 150 + Math.floor(Math.random() * 100)
+    const beltRadius = 25 + b * 15
+    const beltThickness = 5 + b * 2
+    const beltHeight = 10 + b * 5
 
-  // Create custom shader material for the wormhole
-  const tunnelMaterial = new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      color1: { value: new THREE.Color(0x0088ff) },
-      color2: { value: new THREE.Color(0xff5500) },
-      pulseIntensity: { value: 0.0 },
-    },
-    vertexShader: `
-      varying vec2 vUv;
-      varying vec3 vPosition;
-      
-      void main() {
-        vUv = uv;
-        vPosition = position;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+    // Create galaxy core for this belt
+    const galaxyCoreGeometry = new THREE.SphereGeometry(3 + b * 1.5, 32, 32)
+    const galaxyCoreMaterial = new THREE.MeshPhongMaterial({
+      color: 0x000000,
+      emissive: new THREE.Color().setHSL(Math.random(), 0.8, 0.5),
+      emissiveIntensity: 2,
+      transparent: true,
+      opacity: 0.8,
+    })
+
+    const galaxyCore = new THREE.Mesh(galaxyCoreGeometry, galaxyCoreMaterial)
+
+    // Position the galaxy core randomly in space
+    const coreX = (Math.random() - 0.5) * 100
+    const coreY = (Math.random() - 0.5) * 60
+    const coreZ = (Math.random() - 0.5) * 100
+
+    galaxyCore.position.set(coreX, coreY, coreZ)
+    beltGroup.position.copy(galaxyCore.position)
+    scene.add(galaxyCore)
+
+    // Create asteroids for this belt
+    for (let i = 0; i < asteroidCount; i++) {
+      // Randomize asteroid size
+      const size = Math.random() * 0.8 + 0.2
+
+      // Create asteroid geometry with random shape
+      let asteroidGeometry
+      const shapeType = Math.random()
+
+      if (shapeType < 0.5) {
+        // Irregular polyhedron
+        asteroidGeometry = new THREE.DodecahedronGeometry(size, 0)
+      } else if (shapeType < 0.8) {
+        // More complex shape
+        asteroidGeometry = new THREE.OctahedronGeometry(size, 1)
+      } else {
+        // Simple shape
+        asteroidGeometry = new THREE.TetrahedronGeometry(size, 0)
       }
-    `,
-    fragmentShader: `
-      uniform float time;
-      uniform vec3 color1;
-      uniform vec3 color2;
-      uniform float pulseIntensity;
-      
-      varying vec2 vUv;
-      varying vec3 vPosition;
-      
-      void main() {
-        // Create swirling pattern
-        float pattern = sin(vUv.x * 20.0 + time * 2.0) * 0.5 + 0.5;
-        pattern *= sin(vUv.y * 10.0 - time * 3.0) * 0.5 + 0.5;
-        
-        // Add radial waves
-        float radial = length(vUv - vec2(0.5));
-        pattern += sin(radial * 20.0 - time * 4.0) * 0.3;
-        
-        // Add pulse effect
-        pattern += pulseIntensity * sin(time * 10.0) * 0.3;
-        
-        // Mix colors based on pattern
-        vec3 finalColor = mix(color1, color2, pattern);
-        
-        // Add glow at the center
-        float glow = 1.0 - smoothstep(0.0, 0.5, radial);
-        finalColor += color1 * glow * 0.5;
-        
-        // Add transparency at edges
-        float alpha = smoothstep(0.0, 0.2, 1.0 - radial) * 0.8;
-        alpha += pulseIntensity * 0.2;
-        
-        gl_FragColor = vec4(finalColor, alpha);
+
+      // Create material with random color tint
+      const hue = 0.05 + Math.random() * 0.1 // Brownish/grayish
+      const saturation = 0.3 + Math.random() * 0.3
+      const lightness = 0.2 + Math.random() * 0.3
+
+      const asteroidMaterial = new THREE.MeshStandardMaterial({
+        color: new THREE.Color().setHSL(hue, saturation, lightness),
+        roughness: 0.8 + Math.random() * 0.2,
+        metalness: Math.random() * 0.3,
+      })
+
+      const asteroid = new THREE.Mesh(asteroidGeometry, asteroidMaterial)
+
+      // Position asteroid in an elliptical orbit
+      const angle = Math.random() * Math.PI * 2
+      const radiusVariation = (Math.random() - 0.5) * beltThickness
+      const heightVariation = (Math.random() - 0.5) * beltHeight
+
+      asteroid.position.x = Math.cos(angle) * (beltRadius + radiusVariation)
+      asteroid.position.z = Math.sin(angle) * (beltRadius + radiusVariation)
+      asteroid.position.y = heightVariation
+
+      // Random rotation
+      asteroid.rotation.x = Math.random() * Math.PI * 2
+      asteroid.rotation.y = Math.random() * Math.PI * 2
+      asteroid.rotation.z = Math.random() * Math.PI * 2
+
+      // Store orbit data
+      asteroid.userData = {
+        orbitRadius: beltRadius + radiusVariation,
+        orbitSpeed: 0.0001 + Math.random() * 0.0005,
+        orbitOffset: angle,
+        rotationSpeed: {
+          x: (Math.random() - 0.5) * 0.01,
+          y: (Math.random() - 0.5) * 0.01,
+          z: (Math.random() - 0.5) * 0.01,
+        },
       }
-    `,
-    transparent: true,
-    side: THREE.DoubleSide,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  })
 
-  const tunnel = new THREE.Mesh(tunnelGeometry, tunnelMaterial)
-  tunnel.rotation.x = Math.PI / 2
-  wormholeGroup.add(tunnel)
+      asteroid.castShadow = true
+      asteroid.receiveShadow = true
 
-  // Add particles inside the wormhole
-  const particleCount = 1000
-  const particleGeometry = new THREE.BufferGeometry()
-  const particlePositions = new Float32Array(particleCount * 3)
+      beltGroup.add(asteroid)
+    }
 
-  for (let i = 0; i < particleCount; i++) {
-    const t = Math.random()
-    const angle = Math.random() * Math.PI * 2
-    const radius = Math.random() * 4
+    // Add dust particles around the belt
+    const dustCount = 2000
+    const dustGeometry = new THREE.BufferGeometry()
+    const dustPositions = new Float32Array(dustCount * 3)
+    const dustColors = new Float32Array(dustCount * 3)
+    const dustSizes = new Float32Array(dustCount)
 
-    particlePositions[i * 3] = Math.cos(angle) * radius
-    particlePositions[i * 3 + 1] = Math.sin(angle) * radius
-    particlePositions[i * 3 + 2] = -20 - t * 80
+    for (let i = 0; i < dustCount; i++) {
+      const angle = Math.random() * Math.PI * 2
+      const radiusVariation = (Math.random() - 0.5) * beltThickness * 2
+      const heightVariation = (Math.random() - 0.5) * beltHeight * 1.5
+
+      dustPositions[i * 3] = Math.cos(angle) * (beltRadius + radiusVariation)
+      dustPositions[i * 3 + 1] = heightVariation
+      dustPositions[i * 3 + 2] = Math.sin(angle) * (beltRadius + radiusVariation)
+
+      // Dust color based on galaxy core with variation
+      const coreColor = galaxyCoreMaterial.emissive.clone()
+      const hue = (coreColor.getHSL({}).h + (Math.random() - 0.5) * 0.1 + 1) % 1
+      const saturation = 0.7 + Math.random() * 0.3
+      const lightness = 0.5 + Math.random() * 0.3
+
+      const color = new THREE.Color().setHSL(hue, saturation, lightness)
+
+      dustColors[i * 3] = color.r
+      dustColors[i * 3 + 1] = color.g
+      dustColors[i * 3 + 2] = color.b
+
+      dustSizes[i] = Math.random() * 0.5 + 0.1
+    }
+
+    dustGeometry.setAttribute("position", new THREE.BufferAttribute(dustPositions, 3))
+    dustGeometry.setAttribute("color", new THREE.BufferAttribute(dustColors, 3))
+    dustGeometry.setAttribute("size", new THREE.BufferAttribute(dustSizes, 1))
+
+    const dustMaterial = new THREE.PointsMaterial({
+      size: 0.1,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.6,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+
+    const dustParticles = new THREE.Points(dustGeometry, dustMaterial)
+    beltGroup.add(dustParticles)
+
+    // Add belt to scene and store in array
+    scene.add(beltGroup)
+    belts.push({
+      group: beltGroup,
+      core: galaxyCore,
+      rotationAxis: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
+      rotationSpeed: Math.random() * 0.0001 + 0.00005,
+    })
   }
 
-  particleGeometry.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3))
-
-  const particleMaterial = new THREE.PointsMaterial({
-    size: 0.2,
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0.8,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  })
-
-  const particles = new THREE.Points(particleGeometry, particleMaterial)
-  wormholeGroup.add(particles)
-
-  // Add light at the entrance
-  const entranceLight = new THREE.PointLight(0x00aaff, 5, 20)
-  entranceLight.position.set(0, 0, -20)
-  wormholeGroup.add(entranceLight)
-
-  // Position the wormhole behind the scene
-  wormholeGroup.position.set(0, 5, -30)
-  wormholeGroup.rotation.x = Math.PI / 10
-  wormholeGroup.visible = true
-
-  scene.add(wormholeGroup)
-  return wormholeGroup
+  return belts
 }
 
-// NEW: Pulsate Wormhole on Beat
-function pulsateWormhole() {
-  if (!wormhole) return
+// Create Wormholes
+function createWormholes() {
+  const wormholeCount = 3
+  const wormholes = []
 
-  // Find the tunnel (first child)
-  const tunnel = wormhole.children[0]
-  if (tunnel && tunnel.material && tunnel.material.uniforms) {
-    // Set pulse intensity
-    tunnel.material.uniforms.pulseIntensity.value = 1.0
+  for (let i = 0; i < wormholeCount; i++) {
+    const wormholeGroup = new THREE.Group()
 
-    // Reset pulse intensity after a short delay
-    setTimeout(() => {
-      if (tunnel && tunnel.material && tunnel.material.uniforms) {
-        tunnel.material.uniforms.pulseIntensity.value = 0.0
-      }
-    }, 300)
-  }
-
-  // Also pulse the entrance light
-  const entranceLight = wormhole.children[2]
-  if (entranceLight && entranceLight.isLight) {
-    const originalIntensity = entranceLight.intensity
-    entranceLight.intensity = originalIntensity * 3
-
-    setTimeout(() => {
-      if (entranceLight) {
-        entranceLight.intensity = originalIntensity
-      }
-    }, 300)
-  }
-}
-
-// NEW: Create Audio-Reactive Geometric Shape
-function createAudioReactiveGeometry() {
-  const geometry = new THREE.IcosahedronGeometry(2, 1)
-
-  // Create custom shader material
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      bassIntensity: { value: 0 },
-      midIntensity: { value: 0 },
-      trebleIntensity: { value: 0 },
-    },
-    vertexShader: `
-      uniform float time;
-      uniform float bassIntensity;
-      uniform float midIntensity;
-      uniform float trebleIntensity;
-      
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-      
-      void main() {
-        vNormal = normal;
-        
-        // Create audio-reactive displacement
-        vec3 newPosition = position;
-        
-        // Bass affects overall size
-        newPosition *= 1.0 + bassIntensity * 0.5;
-        
-        // Mids create wave patterns
-        float midDisplacement = sin(position.x * 5.0 + time * 2.0) * 
-                               sin(position.y * 5.0 + time * 1.5) * 
-                               sin(position.z * 5.0 + time);
-        newPosition += normal * midDisplacement * midIntensity * 0.5;
-        
-        // Treble creates spiky effect
-        float trebleDisplacement = sin(position.x * 20.0 + time * 5.0) * 
-                                  sin(position.y * 20.0 + time * 4.0) * 
-                                  sin(position.z * 20.0 + time * 6.0);
-        newPosition += normal * trebleDisplacement * trebleIntensity * 0.3;
-        
-        vPosition = newPosition;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
-      }
-    `,
-    fragmentShader: `
-      uniform float time;
-      uniform float bassIntensity;
-      uniform float midIntensity;
-      uniform float trebleIntensity;
-      
-      varying vec3 vNormal;
-      varying vec3 vPosition;
-      
-      void main() {
-        // Create color based on position and audio
-        vec3 baseColor = vec3(0.1, 0.5, 0.8); // Blue base
-        
-        // Add color variations based on audio
-        vec3 bassColor = vec3(1.0, 0.2, 0.1); // Red for bass
-        vec3 midColor = vec3(0.1, 0.8, 0.2);  // Green for mids
-        vec3 trebleColor = vec3(0.8, 0.3, 0.8); // Purple for treble
-        
-        // Mix colors based on audio intensities
-        vec3 finalColor = baseColor;
-        finalColor = mix(finalColor, bassColor, bassIntensity * 0.7);
-        finalColor = mix(finalColor, midColor, midIntensity * 0.5);
-        finalColor = mix(finalColor, trebleColor, trebleIntensity * 0.3);
-        
-        // Add time-based color pulsing
-        float pulse = sin(time * 2.0) * 0.5 + 0.5;
-        finalColor *= 0.8 + pulse * 0.4;
-        
-        // Add edge glow
-        vec3 viewDirection = normalize(-vPosition);
-        float fresnel = pow(1.0 - dot(viewDirection, vNormal), 3.0);
-        finalColor += vec3(1.0, 1.0, 1.0) * fresnel * 0.5;
-        
-        gl_FragColor = vec4(finalColor, 0.8);
-      }
-    `,
-    transparent: true,
-    side: THREE.DoubleSide,
-  })
-
-  const mesh = new THREE.Mesh(geometry, material)
-  mesh.position.set(-8, 5, -5)
-  scene.add(mesh)
-
-  return mesh
-}
-
-// NEW: Create Particle System
-function createParticleSystem() {
-  const particleCount = 5000
-  const geometry = new THREE.BufferGeometry()
-
-  const positions = new Float32Array(particleCount * 3)
-  const colors = new Float32Array(particleCount * 3)
-  const sizes = new Float32Array(particleCount)
-  const lifetimes = new Float32Array(particleCount)
-  const velocities = new Float32Array(particleCount * 3)
-
-  for (let i = 0; i < particleCount; i++) {
-    // Random position in a sphere
-    const radius = 20 + Math.random() * 10
-    const theta = Math.random() * Math.PI * 2
-    const phi = Math.random() * Math.PI
-
-    positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
-    positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
-    positions[i * 3 + 2] = radius * Math.cos(phi)
-
-    // Random colors
-    const hue = Math.random()
-    const color = new THREE.Color().setHSL(hue, 0.9, 0.6)
-    colors[i * 3] = color.r
-    colors[i * 3 + 1] = color.g
-    colors[i * 3 + 2] = color.b
-
-    // Random sizes
-    sizes[i] = Math.random() * 2 + 0.5
-
-    // Random lifetimes
-    lifetimes[i] = Math.random()
-
-    // Random velocities (slow orbital movement)
-    velocities[i * 3] = (Math.random() - 0.5) * 0.01
-    velocities[i * 3 + 1] = (Math.random() - 0.5) * 0.01
-    velocities[i * 3 + 2] = (Math.random() - 0.5) * 0.01
-  }
-
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3))
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3))
-  geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1))
-  geometry.setAttribute("lifetime", new THREE.BufferAttribute(lifetimes, 1))
-  geometry.setAttribute("velocity", new THREE.BufferAttribute(velocities, 3))
-
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      audioIntensity: { value: 0 },
-      pixelRatio: { value: renderer.getPixelRatio() },
-    },
-    vertexShader: `
-      attribute float size;
-      attribute vec3 color;
-      attribute float lifetime;
-      attribute vec3 velocity;
-      
-      uniform float time;
-      uniform float audioIntensity;
-      uniform float pixelRatio;
-      
-      varying vec3 vColor;
-      varying float vLifetime;
-      
-      void main() {
-        vColor = color;
-        
-        // Update lifetime based on time
-        vLifetime = fract(lifetime + time * 0.1);
-        
-        // Size variation based on lifetime and audio
-        float sizeScale = sin(vLifetime * 3.14159) * (1.0 + audioIntensity);
-        gl_PointSize = size * pixelRatio * sizeScale;
-        
-        // Position with slight movement
-        vec3 pos = position;
-        pos.x += sin(time * 0.5 + position.z * 0.1) * 0.5;
-        pos.y += cos(time * 0.4 + position.x * 0.1) * 0.5;
-        pos.z += sin(time * 0.3 + position.y * 0.1) * 0.5;
-        
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying vec3 vColor;
-      varying float vLifetime;
-      
-      void main() {
-        // Circular particles with soft edges
-        float distanceToCenter = length(gl_PointCoord - vec2(0.5));
-        float strength = 1.0 - smoothstep(0.0, 0.5, distanceToCenter);
-        
-        // Fade based on lifetime
-        float alpha = strength * sin(vLifetime * 3.14159);
-        
-        gl_FragColor = vec4(vColor, alpha);
-      }
-    `,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  })
-
-  const particles = new THREE.Points(geometry, material)
-  scene.add(particles)
-
-  return particles
-}
-
-// NEW: Create Laser Beam
-function createLaserBeam() {
-  if (!isPlaying) return
-
-  // Random start position near the top
-  const startX = (Math.random() - 0.5) * 20
-  const startY = 10 + Math.random() * 5
-  const startZ = (Math.random() - 0.5) * 20
-
-  // Random end position near the bottom
-  const endX = (Math.random() - 0.5) * 20
-  const endY = -10 - Math.random() * 5
-  const endZ = (Math.random() - 0.5) * 20
-
-  // Create curve for the beam
-  const points = [
-    new THREE.Vector3(startX, startY, startZ),
-    new THREE.Vector3(
-      startX + (Math.random() - 0.5) * 5,
-      (startY + endY) / 2 + (Math.random() - 0.5) * 5,
-      startZ + (Math.random() - 0.5) * 5,
-    ),
-    new THREE.Vector3(endX, endY, endZ),
-  ]
-
-  const curve = new THREE.CatmullRomCurve3(points)
-  const geometry = new THREE.TubeGeometry(curve, 20, 0.1, 8, false)
-
-  // Random color for the laser
-  const hue = Math.random()
-  const color = new THREE.Color().setHSL(hue, 1.0, 0.7)
-
-  const material = new THREE.MeshBasicMaterial({
-    color: color,
-    transparent: true,
-    opacity: 1.0,
-    side: THREE.DoubleSide,
-  })
-
-  const laser = new THREE.Mesh(geometry, material)
-  scene.add(laser)
-
-  // Add glow effect
-  const glowMaterial = new THREE.MeshBasicMaterial({
-    color: color,
-    transparent: true,
-    opacity: 0.5,
-    side: THREE.DoubleSide,
-  })
-
-  const glowGeometry = new THREE.TubeGeometry(curve, 20, 0.3, 8, false)
-  const glow = new THREE.Mesh(glowGeometry, glowMaterial)
-  scene.add(glow)
-
-  // Add light along the path
-  const light = new THREE.PointLight(color, 2, 5)
-  light.position.copy(points[1])
-  scene.add(light)
-
-  // Store all elements for animation and cleanup
-  laserBeams.push({
-    elements: [laser, glow, light],
-    life: 1.0,
-    decay: 0.02,
-  })
-}
-
-// NEW: Create Nebula Clouds
-function createNebulaClouds() {
-  const clouds = []
-  const cloudCount = 8
-
-  for (let i = 0; i < cloudCount; i++) {
-    // Create cloud geometry
-    const geometry = new THREE.SphereGeometry(3 + Math.random() * 2, 32, 32)
-
-    // Create custom shader material for nebula effect
-    const material = new THREE.ShaderMaterial({
+    // Create the wormhole tunnel
+    const tunnelGeometry = new THREE.TorusGeometry(4, 2, 32, 100)
+    const tunnelMaterial = new THREE.ShaderMaterial({
       uniforms: {
         time: { value: 0 },
-        baseColor: { value: new THREE.Color().setHSL(Math.random(), 0.8, 0.5) },
-        noiseScale: { value: 0.5 + Math.random() * 1.0 },
-        audioIntensity: { value: 0 },
+        color1: { value: new THREE.Color().setHSL(Math.random(), 0.8, 0.5) },
+        color2: { value: new THREE.Color().setHSL((Math.random() + 0.5) % 1, 0.8, 0.5) },
+        pulseIntensity: { value: 0.0 },
       },
       vertexShader: `
+        varying vec2 vUv;
         varying vec3 vPosition;
-        varying vec3 vNormal;
         
         void main() {
+          vUv = uv;
           vPosition = position;
-          vNormal = normal;
           gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
         }
       `,
       fragmentShader: `
         uniform float time;
-        uniform vec3 baseColor;
-        uniform float noiseScale;
-        uniform float audioIntensity;
+        uniform vec3 color1;
+        uniform vec3 color2;
+        uniform float pulseIntensity;
         
+        varying vec2 vUv;
         varying vec3 vPosition;
-        varying vec3 vNormal;
-        
-        // Simple noise function
-        float noise(vec3 p) {
-          return fract(sin(dot(p, vec3(12.9898, 78.233, 45.164))) * 43758.5453);
-        }
         
         void main() {
-          // Create swirling nebula effect
-          vec3 p = vPosition * noiseScale;
+          // Create swirling effect
+          float noise = sin(vUv.x * 20.0 + time * 2.0) * 0.5 + 0.5;
+          noise *= sin(vUv.y * 15.0 - time * 3.0) * 0.5 + 0.5;
           
-          float n = noise(p + time * 0.1);
-          n += 0.5 * noise(p * 2.0 + time * 0.2);
-          n += 0.25 * noise(p * 4.0 + time * 0.3);
+          // Add pulse effect
+          float pulse = sin(time * 5.0) * 0.5 + 0.5;
+          pulse = pulse * pulseIntensity + (1.0 - pulseIntensity);
           
-          // Add audio reactivity
-          n += audioIntensity * 0.2 * sin(time * 5.0 + vPosition.x + vPosition.y + vPosition.z);
+          // Mix colors based on noise
+          vec3 finalColor = mix(color1, color2, noise);
           
-          // Create color variations
-          vec3 color1 = baseColor;
-          vec3 color2 = vec3(1.0) - baseColor; // Complementary color
+          // Apply pulse brightness
+          finalColor *= pulse;
           
-          vec3 finalColor = mix(color1, color2, n);
+          // Edge glow
+          float edge = 1.0 - abs(vUv.y - 0.5) * 2.0;
+          edge = pow(edge, 3.0);
           
-          // Add edge glow
-          vec3 viewDirection = normalize(-vPosition);
-          float fresnel = pow(1.0 - dot(viewDirection, vNormal), 3.0);
-          finalColor += baseColor * fresnel * (1.0 + audioIntensity);
-          
-          // Vary opacity based on noise
-          float alpha = smoothstep(0.1, 0.6, n) * 0.7;
-          
-          gl_FragColor = vec4(finalColor, alpha);
+          gl_FragColor = vec4(finalColor, edge * 0.7);
         }
       `,
       transparent: true,
@@ -1116,322 +827,195 @@ function createNebulaClouds() {
       depthWrite: false,
     })
 
-    const cloud = new THREE.Mesh(geometry, material)
+    const tunnel = new THREE.Mesh(tunnelGeometry, tunnelMaterial)
 
-    // Position clouds around the scene
-    const radius = 25 + Math.random() * 15
-    const theta = Math.random() * Math.PI * 2
-    const phi = Math.random() * Math.PI
+    // Position wormhole randomly in space
+    const x = (Math.random() - 0.5) * 150
+    const y = (Math.random() - 0.5) * 80
+    const z = (Math.random() - 0.5) * 150
 
-    cloud.position.set(
-      radius * Math.sin(phi) * Math.cos(theta),
-      radius * Math.sin(phi) * Math.sin(theta),
-      radius * Math.cos(phi),
-    )
-
-    cloud.userData = {
-      rotationSpeed: {
-        x: (Math.random() - 0.5) * 0.001,
-        y: (Math.random() - 0.5) * 0.001,
-        z: (Math.random() - 0.5) * 0.001,
-      },
-      driftSpeed: {
-        x: (Math.random() - 0.5) * 0.005,
-        y: (Math.random() - 0.5) * 0.005,
-        z: (Math.random() - 0.5) * 0.005,
-      },
-      originalPosition: cloud.position.clone(),
-    }
-
-    scene.add(cloud)
-    clouds.push(cloud)
-  }
-
-  return clouds
-}
-
-// NEW: Create Asteroid Field
-function createAsteroidField() {
-  const asteroidGroup = new THREE.Group()
-  const asteroidCount = 50
-
-  for (let i = 0; i < asteroidCount; i++) {
-    // Create random asteroid geometry
-    const geometry = new THREE.DodecahedronGeometry(
-      0.3 + Math.random() * 0.7, // radius
-      0, // detail
-    )
-
-    // Distort geometry to make it more asteroid-like
-    const positions = geometry.attributes.position.array
-    for (let j = 0; j < positions.length; j += 3) {
-      positions[j] += (Math.random() - 0.5) * 0.2
-      positions[j + 1] += (Math.random() - 0.5) * 0.2
-      positions[j + 2] += (Math.random() - 0.5) * 0.2
-    }
-
-    // Update normals after distortion
-    geometry.computeVertexNormals()
-
-    // Create material with random color
-    const material = new THREE.MeshStandardMaterial({
-      color: new THREE.Color().setHSL(Math.random() * 0.1 + 0.05, 0.5, 0.3 + Math.random() * 0.2),
-      roughness: 0.8,
-      metalness: 0.2,
-      emissive: new THREE.Color(0x331100),
-      emissiveIntensity: Math.random() * 0.5,
-    })
-
-    const asteroid = new THREE.Mesh(geometry, material)
-
-    // Position in a ring formation
-    const radius = 15 + Math.random() * 10
-    const angle = Math.random() * Math.PI * 2
-    const height = (Math.random() - 0.5) * 5
-
-    asteroid.position.set(Math.cos(angle) * radius, height, Math.sin(angle) * radius)
+    wormholeGroup.position.set(x, y, z)
 
     // Random rotation
-    asteroid.rotation.set(Math.random() * Math.PI * 2, Math.random() * Math.PI * 2, Math.random() * Math.PI * 2)
+    wormholeGroup.rotation.x = Math.random() * Math.PI
+    wormholeGroup.rotation.y = Math.random() * Math.PI
+    wormholeGroup.rotation.z = Math.random() * Math.PI
 
-    // Random scale
-    const scale = 0.5 + Math.random() * 1.5
-    asteroid.scale.set(scale, scale, scale)
+    // Add energy particles around the wormhole
+    const particleCount = 500
+    const particleGeometry = new THREE.BufferGeometry()
+    const particlePositions = new Float32Array(particleCount * 3)
+    const particleColors = new Float32Array(particleCount * 3)
 
-    // Store animation data
-    asteroid.userData = {
-      orbitSpeed: 0.0001 + Math.random() * 0.0005,
-      orbitRadius: radius,
-      orbitCenter: new THREE.Vector3(0, height, 0),
-      orbitAngle: angle,
-      rotationSpeed: {
-        x: (Math.random() - 0.5) * 0.01,
-        y: (Math.random() - 0.5) * 0.01,
-        z: (Math.random() - 0.5) * 0.01,
-      },
+    for (let j = 0; j < particleCount; j++) {
+      // Position particles in a torus shape around the wormhole
+      const angle1 = Math.random() * Math.PI * 2
+      const angle2 = Math.random() * Math.PI * 2
+      const radius = 4 + (Math.random() - 0.5) * 1.5
+
+      particlePositions[j * 3] = (radius + Math.cos(angle2) * 1.5) * Math.cos(angle1)
+      particlePositions[j * 3 + 1] = (radius + Math.cos(angle2) * 1.5) * Math.sin(angle1)
+      particlePositions[j * 3 + 2] = Math.sin(angle2) * 1.5
+
+      // Match particle colors to wormhole colors
+      const color = tunnelMaterial.uniforms.color1.value.clone()
+      color.lerp(tunnelMaterial.uniforms.color2.value, Math.random())
+
+      particleColors[j * 3] = color.r
+      particleColors[j * 3 + 1] = color.g
+      particleColors[j * 3 + 2] = color.b
     }
 
-    asteroid.castShadow = true
-    asteroid.receiveShadow = true
+    particleGeometry.setAttribute("position", new THREE.BufferAttribute(particlePositions, 3))
+    particleGeometry.setAttribute("color", new THREE.BufferAttribute(particleColors, 3))
 
-    asteroidGroup.add(asteroid)
+    const particleMaterial = new THREE.PointsMaterial({
+      size: 0.2,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+
+    const particles = new THREE.Points(particleGeometry, particleMaterial)
+    wormholeGroup.add(particles)
+
+    // Add glow light
+    const wormholeLight = new THREE.PointLight(tunnelMaterial.uniforms.color1.value, 2, 20)
+    wormholeGroup.add(wormholeLight)
+
+    // Add tunnel to group
+    wormholeGroup.add(tunnel)
+
+    // Add to scene
+    scene.add(wormholeGroup)
+
+    // Store wormhole data
+    wormholes.push({
+      group: wormholeGroup,
+      tunnel: tunnel,
+      material: tunnelMaterial,
+      light: wormholeLight,
+      particles: particles,
+      rotationAxis: new THREE.Vector3(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).normalize(),
+      rotationSpeed: Math.random() * 0.001 + 0.0005,
+      pulsing: false,
+      pulseTime: 0,
+    })
   }
 
-  scene.add(asteroidGroup)
-  return asteroidGroup
+  return wormholes
 }
 
-// NEW: Create Galaxy Spiral
-function createGalaxySpiral() {
-  const particleCount = 10000
-  const geometry = new THREE.BufferGeometry()
-
-  const positions = new Float32Array(particleCount * 3)
-  const colors = new Float32Array(particleCount * 3)
-  const sizes = new Float32Array(particleCount)
-  const spiralData = new Float32Array(particleCount * 2) // angle and radius
-
-  const arms = 3
-  const armWidth = 0.3
-  const innerRadius = 5
-  const outerRadius = 20
-
-  for (let i = 0; i < particleCount; i++) {
-    // Calculate spiral position
-    const t = i / particleCount
-    const radius = innerRadius + t * (outerRadius - innerRadius)
-    const armAngle = t * 5 * Math.PI + (Math.floor(Math.random() * arms) * Math.PI * 2) / arms
-    const angle = armAngle + (Math.random() - 0.5) * armWidth * (1 - t)
-
-    // Store spiral data for animation
-    spiralData[i * 2] = angle
-    spiralData[i * 2 + 1] = radius
-
-    // Calculate position
-    positions[i * 3] = Math.cos(angle) * radius
-    positions[i * 3 + 1] = (Math.random() - 0.5) * 2 * t
-    positions[i * 3 + 2] = Math.sin(angle) * radius
-
-    // Color based on distance from center
-    const hue = t * 0.3 + 0.6 // Blue to purple gradient
-    const saturation = 0.8
-    const lightness = 0.6 + t * 0.2
-
-    const color = new THREE.Color().setHSL(hue, saturation, lightness)
-    colors[i * 3] = color.r
-    colors[i * 3 + 1] = color.g
-    colors[i * 3 + 2] = color.b
-
-    // Size based on distance from center (larger in center)
-    sizes[i] = Math.max(0.5, 2 * (1 - t) + Math.random() * 0.5)
-  }
-
-  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3))
-  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3))
-  geometry.setAttribute("size", new THREE.BufferAttribute(sizes, 1))
-  geometry.setAttribute("spiralData", new THREE.BufferAttribute(spiralData, 2))
-
-  const material = new THREE.ShaderMaterial({
-    uniforms: {
-      time: { value: 0 },
-      pixelRatio: { value: renderer.getPixelRatio() },
-      audioIntensity: { value: 0 },
-    },
-    vertexShader: `
-      attribute float size;
-      attribute vec3 color;
-      attribute vec2 spiralData;
-      
-      uniform float time;
-      uniform float pixelRatio;
-      uniform float audioIntensity;
-      
-      varying vec3 vColor;
-      
-      void main() {
-        vColor = color;
-        
-        // Rotate the galaxy
-        float angle = spiralData.x + time * 0.05;
-        float radius = spiralData.y;
-        
-        // Apply audio reactivity to radius
-        radius *= 1.0 + audioIntensity * 0.2 * sin(angle * 5.0);
-        
-        // Calculate new position
-        vec3 newPosition = position;
-        newPosition.x = cos(angle) * radius;
-        newPosition.z = sin(angle) * radius;
-        
-        // Apply audio reactivity to y-position
-        newPosition.y += audioIntensity * sin(time + angle) * 0.5;
-        
-        // Size variation with audio
-        gl_PointSize = size * pixelRatio * (1.0 + audioIntensity * 0.5);
-        
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
-      }
-    `,
-    fragmentShader: `
-      varying vec3 vColor;
-      
-      void main() {
-        // Create circular particles with soft edges
-        float distanceToCenter = length(gl_PointCoord - vec2(0.5));
-        float strength = 1.0 - smoothstep(0.0, 0.5, distanceToCenter);
-        
-        gl_FragColor = vec4(vColor, strength);
-      }
-    `,
-    transparent: true,
-    blending: THREE.AdditiveBlending,
-    depthWrite: false,
-  })
-
-  const galaxy = new THREE.Points(geometry, material)
-  galaxy.position.set(0, -15, -20)
-  galaxy.rotation.x = Math.PI / 4
-
-  scene.add(galaxy)
-  return galaxy
-}
-
-// NEW: Create Sound Wave Plane
+// Create Sound Wave Plane
 function createSoundWavePlane() {
-  const geometry = new THREE.PlaneGeometry(30, 30, 128, 128)
+  // Create a plane geometry with many segments for detailed wave movement
+  const planeGeometry = new THREE.PlaneGeometry(60, 40, 128, 128)
 
-  const material = new THREE.ShaderMaterial({
+  // Create shader material for the wave effect
+  const waveMaterial = new THREE.ShaderMaterial({
     uniforms: {
       time: { value: 0 },
-      bassIntensity: { value: 0 },
-      midIntensity: { value: 0 },
-      trebleIntensity: { value: 0 },
-      color1: { value: new THREE.Color(0x00aaff) },
-      color2: { value: new THREE.Color(0xff5500) },
+      audioData: { value: new Float32Array(128).fill(0) },
+      baseColor: { value: new THREE.Color().setHSL(0.6, 0.8, 0.5) },
+      highlightColor: { value: new THREE.Color().setHSL(0.7, 0.9, 0.7) },
+      lowColor: { value: new THREE.Color().setHSL(0.2, 0.8, 0.3) },
+      amplitude: { value: 2.0 },
+      opacity: { value: 0.7 },
     },
     vertexShader: `
       uniform float time;
-      uniform float bassIntensity;
-      uniform float midIntensity;
-      uniform float trebleIntensity;
+      uniform float amplitude;
+      uniform float[128] audioData;
       
       varying vec2 vUv;
       varying float vElevation;
+      
+      float getElevation(vec2 position) {
+        // Get audio data index based on x position
+        float xIndex = clamp(position.x * 0.5 + 0.5, 0.0, 1.0) * 127.0;
+        int index = int(xIndex);
+        float remainder = fract(xIndex);
+        
+        // Interpolate between two adjacent audio data points
+        float audioValue1 = audioData[index];
+        float audioValue2 = index < 127 ? audioData[index + 1] : audioData[index];
+        float audioValue = mix(audioValue1, audioValue2, remainder);
+        
+        // Create wave pattern
+        float elevation = audioValue * amplitude;
+        
+        // Add some additional waves based on time
+        elevation += sin(position.x * 3.0 + time * 0.5) * 0.2 * amplitude;
+        elevation += sin(position.y * 2.0 + time * 0.3) * 0.1 * amplitude;
+        
+        return elevation;
+      }
       
       void main() {
         vUv = uv;
         
-        // Create wave patterns based on audio frequencies
-        float elevation = 0.0;
-        
-        // Bass creates large, slow waves
-        elevation += sin(position.x * 0.5 + time * 0.5) * 
-                    sin(position.y * 0.5 + time * 0.4) * 
-                    bassIntensity * 2.0;
-        
-        // Mids create medium waves
-        elevation += sin(position.x * 2.0 + time * 1.0) * 
-                    sin(position.y * 2.0 + time * 0.8) * 
-                    midIntensity * 1.0;
-        
-        // Treble creates small, fast waves
-        elevation += sin(position.x * 8.0 + time * 2.0) * 
-                    sin(position.y * 8.0 + time * 1.6) * 
-                    trebleIntensity * 0.5;
-        
-        // Store elevation for fragment shader
-        vElevation = elevation;
+        // Calculate elevation
+        vElevation = getElevation(position.xy);
         
         // Apply elevation to vertex
         vec3 newPosition = position;
-        newPosition.z += elevation;
+        newPosition.z += vElevation;
         
         gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
       }
     `,
     fragmentShader: `
-      uniform float time;
-      uniform vec3 color1;
-      uniform vec3 color2;
-      uniform float bassIntensity;
+      uniform vec3 baseColor;
+      uniform vec3 highlightColor;
+      uniform vec3 lowColor;
+      uniform float opacity;
       
       varying vec2 vUv;
       varying float vElevation;
       
       void main() {
-        // Mix colors based on elevation and time
-        float mixFactor = (vElevation + 1.0) * 0.5; // Normalize to 0-1
-        mixFactor = mixFactor * 0.8 + sin(time * 0.5) * 0.2; // Add time variation
+        // Mix colors based on elevation
+        vec3 color = baseColor;
         
-        vec3 color = mix(color1, color2, mixFactor);
+        if (vElevation > 0.5) {
+          float t = (vElevation - 0.5) * 2.0;
+          color = mix(baseColor, highlightColor, t);
+        } else if (vElevation < -0.5) {
+          float t = (-vElevation - 0.5) * 2.0;
+          color = mix(baseColor, lowColor, t);
+        }
         
-        // Add grid pattern
-        float grid = 0.0;
-        grid += smoothstep(0.95, 0.98, sin(vUv.x * 50.0) * 0.5 + 0.5);
-        grid += smoothstep(0.95, 0.98, sin(vUv.y * 50.0) * 0.5 + 0.5);
+        // Add grid lines
+        float gridX = step(0.98, 1.0 - abs(fract(vUv.x * 20.0) * 2.0 - 1.0));
+        float gridY = step(0.98, 1.0 - abs(fract(vUv.y * 20.0) * 2.0 - 1.0));
+        float grid = max(gridX, gridY) * 0.3;
         
-        // Make grid intensity react to bass
-        grid *= 1.0 + bassIntensity * 2.0;
+        color = mix(color, vec3(1.0), grid);
         
-        // Add grid to final color
-        color += grid * 0.5;
+        // Edge glow effect
+        float edge = 1.0 - max(abs(vUv.x - 0.5) * 2.0, abs(vUv.y - 0.5) * 2.0);
+        edge = pow(edge, 3.0);
         
-        // Add edge fade
-        float distanceToCenter = length(vUv - vec2(0.5));
-        float alpha = 1.0 - smoothstep(0.4, 0.5, distanceToCenter);
-        
-        gl_FragColor = vec4(color, alpha * 0.7);
+        gl_FragColor = vec4(color, opacity * edge);
       }
     `,
     transparent: true,
     side: THREE.DoubleSide,
+    wireframe: false,
   })
 
-  const plane = new THREE.Mesh(geometry, material)
-  plane.rotation.x = -Math.PI / 2
-  plane.position.y = -10
+  // Create the plane mesh
+  const plane = new THREE.Mesh(planeGeometry, waveMaterial)
 
+  // Position and rotate the plane
+  plane.rotation.x = -Math.PI / 2 // Horizontal plane
+  plane.position.y = -15 // Below the main scene
+
+  // Add to scene
   scene.add(plane)
+
   return plane
 }
 
@@ -1496,20 +1080,14 @@ const hemiLight = new THREE.HemisphereLight(0x87ceeb, 0x404040, 0.6)
 scene.add(hemiLight)
 
 // Initialize scene elements
-// starField = createStarField()
+starField = createStarField()
 floatingCrystals = createFloatingCrystals()
 ring = createGlowingRing()
-// skybox = createSkybox()
+skybox = createSkybox()
 visualizerBars = createVisualizerBars()
 energyWaves = createEnergyWaves()
-
-// Initialize new visual elements
-wormhole = createWormhole()
-audioReactiveGeometry = createAudioReactiveGeometry()
-particleSystem = createParticleSystem()
-nebulaClouds = createNebulaClouds()
-asteroidField = createAsteroidField()
-galaxySpiral = createGalaxySpiral()
+asteroidBelts = createAsteroidBelts()
+wormholes = createWormholes()
 soundWavePlane = createSoundWavePlane()
 
 // Optimized Thruster Particles
@@ -1610,10 +1188,10 @@ function setupPostProcessing() {
   composer.addPass(rgbShiftPass)
 }
 
-// Load GLTF Model - FIXED PATH HERE
-const loader = new GLTFLoader()
+// Load GLTF Model
+const loader = new GLTFLoader().setPath("public/millennium_falcon/")
 loader.load(
-  "scene.gltf", // Direct path to the model file - this is the key fix
+  "scene.gltf",
   (gltf) => {
     console.log("Model loaded successfully")
     spaceship = gltf.scene
@@ -1771,6 +1349,20 @@ function triggerEnergyWave() {
   }
 }
 
+// Pulse Wormholes
+function pulseWormholes() {
+  if (!wormholes || wormholes.length === 0) return
+
+  wormholes.forEach((wormhole) => {
+    if (!wormhole.pulsing) {
+      wormhole.pulsing = true
+      wormhole.pulseTime = 0
+      wormhole.material.uniforms.pulseIntensity.value = 1.0
+      wormhole.light.intensity = 5
+    }
+  })
+}
+
 // Setup Post-Processing
 setupPostProcessing()
 
@@ -1794,6 +1386,19 @@ function animate() {
       bassAvg = getAverageFrequency(bassData)
       midAvg = getAverageFrequency(midData)
       trebleAvg = getAverageFrequency(trebleData)
+    }
+
+    // Update skybox
+    if (skybox && skybox.material) {
+      for (let i = 0; i < skybox.material.length; i++) {
+        const material = skybox.material[i]
+        // Pulse opacity with bass
+        material.opacity = 0.3 + bassAvg * 0.3
+
+        // Change color with time and audio
+        const hue = (elapsedTime * 0.02 + bassAvg * 0.2) % 1
+        material.color.setHSL(hue, 0.7, 0.1 + bassAvg * 0.2)
+      }
     }
 
     // Update visualizer bars
@@ -1821,6 +1426,106 @@ function animate() {
         bar.material.color.setHSL(hue, 0.8, 0.5 + audioValue * 0.5)
         bar.material.emissive.setHSL(hue, 0.9, 0.3 + audioValue * 0.3)
       }
+    }
+
+    // Update asteroid belts
+    if (asteroidBelts && asteroidBelts.length > 0) {
+      asteroidBelts.forEach((belt) => {
+        // Rotate the entire belt group
+        belt.group.rotateOnAxis(belt.rotationAxis, belt.rotationSpeed * (1 + bassAvg * 2))
+
+        // Update galaxy core
+        if (belt.core && belt.core.material) {
+          // Pulse with bass
+          belt.core.material.emissiveIntensity = 2 + bassAvg * 3
+
+          // Change color over time
+          const hue = (elapsedTime * 0.05 + bassAvg * 0.1) % 1
+          belt.core.material.emissive.setHSL(hue, 0.8, 0.5)
+
+          // Scale with bass
+          const scale = 1 + bassAvg * 0.3
+          belt.core.scale.set(scale, scale, scale)
+        }
+
+        // Update individual asteroids
+        belt.group.children.forEach((child) => {
+          if (child instanceof THREE.Mesh && child.userData && child.userData.rotationSpeed) {
+            // Rotate asteroids individually
+            child.rotation.x += child.userData.rotationSpeed.x * (1 + midAvg)
+            child.rotation.y += child.userData.rotationSpeed.y * (1 + midAvg)
+            child.rotation.z += child.userData.rotationSpeed.z * (1 + midAvg)
+          }
+        })
+      })
+    }
+
+    // Update wormholes
+    if (wormholes && wormholes.length > 0) {
+      wormholes.forEach((wormhole) => {
+        // Update shader time
+        wormhole.material.uniforms.time.value = elapsedTime
+
+        // Rotate wormhole
+        wormhole.group.rotateOnAxis(wormhole.rotationAxis, wormhole.rotationSpeed)
+
+        // Handle pulsing effect
+        if (wormhole.pulsing) {
+          wormhole.pulseTime += 0.05
+
+          if (wormhole.pulseTime >= 1.0) {
+            wormhole.pulsing = false
+            wormhole.material.uniforms.pulseIntensity.value = 0.0
+            wormhole.light.intensity = 2
+          }
+        }
+
+        // Make wormhole react to treble
+        const trebleEffect = trebleAvg * 0.5
+        wormhole.tunnel.scale.set(1 + trebleEffect, 1 + trebleEffect, 1 + trebleEffect)
+
+        // Slowly change colors over time
+        const hue1 = (elapsedTime * 0.03) % 1
+        const hue2 = (elapsedTime * 0.02 + 0.5) % 1
+        wormhole.material.uniforms.color1.value.setHSL(hue1, 0.8, 0.5)
+        wormhole.material.uniforms.color2.value.setHSL(hue2, 0.8, 0.5)
+        wormhole.light.color.copy(wormhole.material.uniforms.color1.value)
+      })
+    }
+
+    // Update sound wave plane
+    if (soundWavePlane && soundWavePlane.material.uniforms) {
+      soundWavePlane.material.uniforms.time.value = elapsedTime
+
+      // Update audio data in the shader
+      if (isPlaying && audioData) {
+        // Create a downsampled version of the audio data for the shader
+        const audioDataLength = Math.min(audioData.length, 128)
+        const downsampledData = new Float32Array(128)
+
+        for (let i = 0; i < 128; i++) {
+          const sourceIndex = Math.floor((i * audioData.length) / 128)
+          downsampledData[i] = audioData[sourceIndex] * 2.0 // Amplify for better visibility
+        }
+
+        soundWavePlane.material.uniforms.audioData.value = downsampledData
+
+        // Update colors based on audio frequencies
+        const bassColor = new THREE.Color().setHSL((elapsedTime * 0.05 + bassAvg * 0.2) % 1, 0.8, 0.5)
+        const trebleColor = new THREE.Color().setHSL((elapsedTime * 0.03 + trebleAvg * 0.2 + 0.5) % 1, 0.9, 0.7)
+        const midColor = new THREE.Color().setHSL((elapsedTime * 0.04 + midAvg * 0.2 + 0.3) % 1, 0.8, 0.4)
+
+        soundWavePlane.material.uniforms.baseColor.value = midColor
+        soundWavePlane.material.uniforms.highlightColor.value = trebleColor
+        soundWavePlane.material.uniforms.lowColor.value = bassColor
+
+        // Adjust amplitude based on overall audio level
+        const overallLevel = (bassAvg + midAvg + trebleAvg) / 3
+        soundWavePlane.material.uniforms.amplitude.value = 2.0 + overallLevel * 8.0
+      }
+
+      // Rotate the plane slowly
+      soundWavePlane.rotation.z += 0.001
     }
 
     // Update energy waves
@@ -1858,176 +1563,15 @@ function animate() {
       }
     }
 
-    // Update laser beams
-    if (laserBeams && laserBeams.length > 0) {
-      for (let i = laserBeams.length - 1; i >= 0; i--) {
-        const laser = laserBeams[i]
-        laser.life -= laser.decay
-
-        if (laser.life <= 0) {
-          // Remove all elements
-          laser.elements.forEach((element) => {
-            scene.remove(element)
-          })
-          laserBeams.splice(i, 1)
-        } else {
-          // Update opacity
-          laser.elements.forEach((element, index) => {
-            if (element.material) {
-              element.material.opacity = laser.life
-            }
-            if (element.isLight) {
-              element.intensity = 2 * laser.life
-            }
-          })
-        }
-      }
-    }
-
-    // Update wormhole
-    if (wormhole) {
-      const tunnel = wormhole.children[0]
-      if (tunnel && tunnel.material && tunnel.material.uniforms) {
-        tunnel.material.uniforms.time.value = elapsedTime
-
-        // Fade pulse intensity over time
-        if (tunnel.material.uniforms.pulseIntensity.value > 0) {
-          tunnel.material.uniforms.pulseIntensity.value *= 0.95
-        }
-      }
-
-      // Update particles inside wormhole
-      const particles = wormhole.children[1]
-      if (particles && particles.geometry && particles.geometry.attributes.position) {
-        const positions = particles.geometry.attributes.position.array
-
-        for (let i = 0; i < positions.length / 3; i++) {
-          // Move particles along the tunnel
-          positions[i * 3 + 2] += 0.2 + bassAvg * 0.3
-
-          // Reset particles that reach the end
-          if (positions[i * 3 + 2] > -20) {
-            const angle = Math.random() * Math.PI * 2
-            const radius = Math.random() * 4
-
-            positions[i * 3] = Math.cos(angle) * radius
-            positions[i * 3 + 1] = Math.sin(angle) * radius
-            positions[i * 3 + 2] = -100
-          }
-        }
-
-        particles.geometry.attributes.position.needsUpdate = true
-      }
-    }
-
-    // Update audio reactive geometry
-    if (audioReactiveGeometry && audioReactiveGeometry.material && audioReactiveGeometry.material.uniforms) {
-      audioReactiveGeometry.material.uniforms.time.value = elapsedTime
-      audioReactiveGeometry.material.uniforms.bassIntensity.value = bassAvg
-      audioReactiveGeometry.material.uniforms.midIntensity.value = midAvg
-      audioReactiveGeometry.material.uniforms.trebleIntensity.value = trebleAvg
-
-      // Rotate based on audio
-      audioReactiveGeometry.rotation.x += 0.005 + bassAvg * 0.01
-      audioReactiveGeometry.rotation.y += 0.01 + midAvg * 0.02
-      audioReactiveGeometry.rotation.z += 0.007 + trebleAvg * 0.015
-    }
-
-    // Update particle system
-    if (particleSystem && particleSystem.material && particleSystem.material.uniforms) {
-      particleSystem.material.uniforms.time.value = elapsedTime
-      particleSystem.material.uniforms.audioIntensity.value = (bassAvg + midAvg + trebleAvg) / 3
-
-      // Slowly rotate the entire system
-      particleSystem.rotation.y += 0.001
-    }
-
-    // Update nebula clouds
-    if (nebulaClouds && nebulaClouds.length > 0) {
-      nebulaClouds.forEach((cloud, index) => {
-        if (!cloud || !cloud.material || !cloud.material.uniforms) return
-
-        // Update time and audio intensity
-        cloud.material.uniforms.time.value = elapsedTime
-
-        // Use different frequency bands for different clouds
-        const audioIndex = index % 3
-        let audioValue = 0
-
-        if (audioIndex === 0) audioValue = bassAvg
-        else if (audioIndex === 1) audioValue = midAvg
-        else audioValue = trebleAvg
-
-        cloud.material.uniforms.audioIntensity.value = audioValue
-
-        // Rotate and drift
-        const data = cloud.userData
-        if (data) {
-          cloud.rotation.x += data.rotationSpeed.x
-          cloud.rotation.y += data.rotationSpeed.y
-          cloud.rotation.z += data.rotationSpeed.z
-
-          // Drift with audio reactivity
-          cloud.position.x =
-            data.originalPosition.x + Math.sin(elapsedTime * 0.2 + index) * data.driftSpeed.x * (1 + audioValue * 5)
-          cloud.position.y =
-            data.originalPosition.y + Math.cos(elapsedTime * 0.3 + index) * data.driftSpeed.y * (1 + audioValue * 5)
-          cloud.position.z =
-            data.originalPosition.z + Math.sin(elapsedTime * 0.4 + index) * data.driftSpeed.z * (1 + audioValue * 5)
-        }
-      })
-    }
-
-    // Update asteroid field
-    if (asteroidField && asteroidField.children) {
-      asteroidField.children.forEach((asteroid) => {
-        const data = asteroid.userData
-        if (!data) return
-
-        // Rotate asteroid
-        asteroid.rotation.x += data.rotationSpeed.x
-        asteroid.rotation.y += data.rotationSpeed.y
-        asteroid.rotation.z += data.rotationSpeed.z
-
-        // Orbit around center
-        data.orbitAngle += data.orbitSpeed * (1 + bassAvg * 2)
-        asteroid.position.x = data.orbitCenter.x + Math.cos(data.orbitAngle) * data.orbitRadius
-        asteroid.position.z = data.orbitCenter.z + Math.sin(data.orbitAngle) * data.orbitRadius
-
-        // Add slight bobbing with mid frequencies
-        asteroid.position.y = data.orbitCenter.y + Math.sin(elapsedTime * 0.5 + data.orbitAngle * 5) * 0.2 * midAvg
-      })
-    }
-
-    // Update galaxy spiral
-    if (galaxySpiral && galaxySpiral.material && galaxySpiral.material.uniforms) {
-      galaxySpiral.material.uniforms.time.value = elapsedTime
-      galaxySpiral.material.uniforms.audioIntensity.value = bassAvg * 0.5 + midAvg * 0.3 + trebleAvg * 0.2
-
-      // Rotate the entire galaxy
-      galaxySpiral.rotation.z += 0.001
-    }
-
-    // Update sound wave plane
-    if (soundWavePlane && soundWavePlane.material && soundWavePlane.material.uniforms) {
-      soundWavePlane.material.uniforms.time.value = elapsedTime
-      soundWavePlane.material.uniforms.bassIntensity.value = bassAvg
-      soundWavePlane.material.uniforms.midIntensity.value = midAvg
-      soundWavePlane.material.uniforms.trebleIntensity.value = trebleAvg
-
-      // Change colors over time
-      const hue1 = (elapsedTime * 0.05) % 1
-      const hue2 = (elapsedTime * 0.05 + 0.5) % 1
-      soundWavePlane.material.uniforms.color1.value.setHSL(hue1, 0.7, 0.5)
-      soundWavePlane.material.uniforms.color2.value.setHSL(hue2, 0.7, 0.5)
-    }
-
     if (spaceship) {
       // Make spaceship react to bass
       const bassIntensity = bassAvg * 0.2
       spaceship.rotation.y = Math.sin(elapsedTime * 0.1) * 0.05 + bassIntensity * 0.1
       spaceship.position.x += (mouseX * 0.5 - spaceship.position.x) * 0.02
       spaceship.rotation.z += (-mouseX * 0.2 - spaceship.rotation.z) * 0.02
+
+      // Make spaceship bounce slightly with the beat
+      spaceship.position * 0.02
 
       // Make spaceship bounce slightly with the beat
       spaceship.position.y = 1.05 + bassAvg * 0.2
@@ -2056,6 +1600,46 @@ function animate() {
 
         thrusterParticles.geometry.attributes.position.needsUpdate = true
         thrusterParticles.geometry.attributes.color.needsUpdate = true
+      }
+    }
+
+    if (starField && starField.material.uniforms) {
+      starField.material.uniforms.time.value = elapsedTime
+      starField.material.uniforms.pixelRatio.value = renderer.getPixelRatio()
+
+      // Update audio intensity in shader
+      if (starField.material.uniforms.audioIntensity) {
+        starField.material.uniforms.audioIntensity.value = trebleAvg
+      }
+
+      if (starField.geometry.attributes.position && starField.geometry.attributes.velocity) {
+        const positions = starField.geometry.attributes.position.array
+        const velocities = starField.geometry.attributes.velocity.array
+        const count = positions.length / 3
+
+        // Speed up star movement based on treble
+        const speedMultiplier = 1 + trebleAvg * 2
+
+        const updateCount = Math.min(count, 2000)
+        const startIdx = Math.floor(Math.random() * (count - updateCount))
+
+        for (let i = startIdx; i < startIdx + updateCount; i++) {
+          positions[i * 3] += velocities[i * 3] * speedMultiplier
+          positions[i * 3 + 1] += velocities[i * 3 + 1] * speedMultiplier
+          positions[i * 3 + 2] += velocities[i * 3 + 2] * speedMultiplier
+
+          if (positions[i * 3 + 2] < -150) {
+            const radius = 150
+            const theta = Math.random() * Math.PI * 2
+            const phi = Math.random() * Math.PI
+
+            positions[i * 3] = radius * Math.sin(phi) * Math.cos(theta)
+            positions[i * 3 + 1] = radius * Math.sin(phi) * Math.sin(theta)
+            positions[i * 3 + 2] = radius * Math.cos(phi)
+          }
+        }
+
+        starField.geometry.attributes.position.needsUpdate = true
       }
     }
 
